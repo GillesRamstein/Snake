@@ -1,2 +1,4 @@
 snake
 snake.o
+snake_ai
+snake_ai.o
