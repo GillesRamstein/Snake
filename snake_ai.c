@@ -15,7 +15,8 @@
 // 2nd screen
 #else
 // 1920 + 1920/2+80
-#define WINDOW_X 2960
+#define WINDOW_X 2000
+// #define WINDOW_X 2960
 #define WINDOW_Y 140
 #endif
 
@@ -31,7 +32,7 @@
 #define FONT "JetBrainsMono-Light.ttf"
 #define FONT_SIZE 50
 
-#define RENDER_DELAY 20
+#define RENDER_DELAY 0
 
 typedef enum { UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3 } Direction;
 
@@ -230,48 +231,85 @@ int eval_action(Snake *snake, Apple apple, Direction next_dir) {
   default:
     break;
   }
-  // printf("(%zu, %zu)  (%zu, %zu)  ", next_x, next_y, snake->head->x,
-  //        snake->head->y);
 
-  // negative reward when hitting a wall
+  // large negative reward when hitting a wall
   if (next_x < 1 || next_x > GRID_SIZE - 2 || next_y < 1 ||
       next_y > GRID_SIZE - 2) {
     reward -= 100;
-    // printf("(wall collision)  ");
   }
 
-  // positive reward when hitting an apple
-  if (next_x == apple.x && next_y == apple.y) {
-    reward += 10;
-    // printf("(apple collision)  ");
-  }
+  // // small negative reward when touching wall
+  // if (next_x < 2 || next_x > GRID_SIZE - 3 || next_y < 2 ||
+  //     next_y > GRID_SIZE - 3) {
+  //   reward -= 1;
+  // }
 
-  // positive reward when getting closer to apple
-#if (1)
-  // move in zig zag towards apple
-  int d =
-      sqrt(square(snake->head->x - apple.x) + square(snake->head->y - apple.y));
-  int next_d = sqrt(square(next_x - apple.x) + square(next_y - apple.y));
-#else
-  // move in longer straight lines towards apple
-  int d = abs((int)snake->head->x - (int)apple.x) +
-          abs((int)snake->head->y - (int)apple.y);
-  int next_d =
-      abs((int)next_x - (int)apple.x) + abs((int)next_y - (int)apple.y);
-#endif
-  if (next_d < d) {
-    reward += 1;
-  }
-
-  // negative reward when hitting snake
+  // large negative reward when hitting snake
   for (size_t i = 1; i < snake->len; ++i) {
     if (next_x == snake->body[i].x && next_y == snake->body[i].y) {
       reward -= 100;
-      // printf("(snake collision)  ");
+      break;
     }
   }
 
-  // printf("Dir %d reward: %d\n", next_dir, reward);
+  // large positive reward when hitting an apple
+  if (next_x == apple.x && next_y == apple.y) {
+    reward += 100;
+  }
+
+  // fixed reward when moving closer to apple
+  int s_next, s_curr;
+  if (0) {
+    // straight lines distance - moves more like a human
+    s_next = abs((int)next_x - (int)apple.x) + abs((int)next_y - (int)apple.y);
+    s_curr = abs((int)snake->head->x - (int)apple.x) + abs((int)snake->head->y - (int)apple.y);
+  } else {
+    // closest distance - moves more like an AI
+    s_next = sqrt(square(next_x - apple.x) + square(next_y - apple.y));
+    s_curr = sqrt(square(snake->head->x - apple.x) + square(snake->head->y - apple.y));
+  }
+  if (s_next < s_curr) {
+    reward += 2;
+  }
+
+  // penalty when turning into a potential enclosemnt
+  for (size_t i = 1; i < snake->len; ++i) {
+    if (snake->dir != next_dir && (next_dir == UP || next_dir == DOWN)) {
+      if (snake->head->x != snake->body[i].x) {
+        continue;
+      }
+      if (snake->dir == RIGHT || snake->dir == LEFT) {
+        if (next_dir == UP && snake->head->y > snake->body[i].y) {
+          // moving towards body
+          reward -= 1;
+          break;
+        }
+        if (next_dir == DOWN && snake->head->y < snake->body[i].y) {
+          // moving towards body
+          reward -= 1;
+          break;
+        }
+      }
+    }
+    if (snake->dir != next_dir && (next_dir == LEFT || next_dir == RIGHT)) {
+      if (snake->head->y != snake->body[i].y) {
+        continue;
+      }
+      if (snake->dir == UP || snake->dir == DOWN) {
+        if (next_dir == LEFT && snake->head->x > snake->body[i].x) {
+          // moving towards body
+          reward -= 1;
+          break;
+        }
+        if (next_dir == RIGHT && snake->head->x < snake->body[i].x) {
+          // moving towards body
+          reward -= 1;
+          break;
+        }
+      }
+    }
+  }
+
   return reward;
 }
 
@@ -394,6 +432,7 @@ int main() {
   SDL_Event event;
   bool quit = false;
   bool paused = false;
+  bool reset = false;
   while (!quit) {
     snake_has_moved = false;
 
@@ -411,6 +450,9 @@ int main() {
           break;
         case SDLK_p:
           paused = paused ? false : true;
+          break;
+        case SDLK_r:
+          reset = true;
           break;
         // arrow keys movement
         case SDLK_UP:
@@ -470,25 +512,35 @@ int main() {
     // RENDER START
     SDL_RenderClear(renderer);
 
-    if (!paused) {
-      if (is_collision_snake_apple(snake, apple)) {
-        snake_grow(&snake);
-        apple_spawn(&apple, snake);
-        ++score;
-      }
-      snake_move(&snake);
-      snake_has_moved = false;
+    if (paused) {
+      SDL_Delay(50);
+      continue;
+    }
 
-      if (is_collision_snake_wall(snake)) {
-        snake_reset(&snake);
-        highscore = score > highscore ? score : highscore;
-        score = 0;
-      }
-      if (is_collision_snake_snake(snake)) {
-        snake_reset(&snake);
-        highscore = score > highscore ? score : highscore;
-        score = 0;
-      }
+    if (is_collision_snake_apple(snake, apple)) {
+      snake_grow(&snake);
+      apple_spawn(&apple, snake);
+      ++score;
+    }
+    snake_move(&snake);
+    snake_has_moved = false;
+
+    if (is_collision_snake_wall(snake)) {
+      snake_reset(&snake);
+      highscore = score > highscore ? score : highscore;
+      score = 0;
+    }
+    if (is_collision_snake_snake(snake)) {
+      snake_reset(&snake);
+      highscore = score > highscore ? score : highscore;
+      score = 0;
+    }
+
+    if (reset) {
+      snake_reset(&snake);
+      reset = false;
+      highscore = score > highscore ? score : highscore;
+      score = 0;
     }
 
     grid_render(renderer);
