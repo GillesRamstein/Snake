@@ -8,3 +8,7 @@
 // graphics
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif

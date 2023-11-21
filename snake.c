@@ -7,8 +7,8 @@
 #define WINDOW_HEIGHT 800
 
 // laptop screen
-#if 0
-  // 1920/2+80
+#if 1
+// 1920/2+80
 #define WINDOW_X 1040
 #define WINDOW_Y 140
 
@@ -198,66 +198,29 @@ bool is_collision_snake_snake(Snake snake) {
   return false;
 }
 
-int main() {
+/*************
+ * Init Game *
+ *************/
 
-  /*************
-   * Setup SDL *
-   *************/
+TTF_Font *font;
+SDL_Window *window;
+SDL_Renderer *renderer;
 
-  if (SDL_INIT_VIDEO < 0) {
-    fprintf(stderr, "ERROR: SDL_INIT_VIDEO");
-    return 1;
-  }
+Snake snake;
 
-  if (TTF_Init() < 0) {
-    fprintf(stderr, "ERROR: TTF_Init");
-    return 1;
-  }
+bool snake_has_moved;
 
-  TTF_Font *font = TTF_OpenFont(FONT, FONT_SIZE);
-  if (!font) {
-    fprintf(stderr, "ERROR: Failed to load font");
-    return 1;
-  }
+Apple apple;
 
-  SDL_Window *window;
-  SDL_Renderer *renderer;
+size_t score = 0;
+size_t highscore = 0;
 
-  window = SDL_CreateWindow("Snake", WINDOW_X, WINDOW_Y, WINDOW_WIDTH,
-                            WINDOW_HEIGHT, SDL_WINDOW_BORDERLESS);
+SDL_Event event;
+bool quit = false;
+bool paused = false;
 
-  if (!window) {
-    fprintf(stderr, "ERROR: SDL_CreateWindow");
-    return 1;
-  }
-
-  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-
-  if (!renderer) {
-    fprintf(stderr, "ERROR: SDL_CreateRenderer");
-    return 1;
-  }
-
-  /*************
-   * Game Loop *
-   **************/
-
-  Snake snake;
-  snake.head = snake.body;
-  snake_reset(&snake);
-
-  bool snake_has_moved;
-
-  Apple apple;
-  apple_spawn(&apple, snake);
-
-  size_t score = 0;
-  size_t highscore = 0;
-
-  SDL_Event event;
-  bool quit = false;
-  bool paused = false;
-  while (!quit) {
+static void mainloop(void) {
+  if (!quit) {
     snake_has_moved = false;
 
     while (SDL_PollEvent(&event)) {
@@ -378,16 +341,77 @@ int main() {
     SDL_Delay(100);
     // RENDER END
 
-  } // while(!quit)
+  } else {
 
-  /***********
-   * Cleanup *
-   ***********/
+    /***********
+     * Cleanup *
+     ***********/
 
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
-  TTF_Quit();
-  SDL_Quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    TTF_Quit();
+    SDL_Quit();
+
+#ifdef __EMSCRIPTEN__
+    emscripten_cancel_main_loop(); /* this should "kill" the app. */
+#else
+    exit(0);
+#endif
+  }
+}
+
+int main() {
+
+  /*************
+   * Setup SDL *
+   *************/
+
+  if (SDL_INIT_VIDEO < 0) {
+    fprintf(stderr, "ERROR: SDL_INIT_VIDEO");
+    return 1;
+  }
+
+  if (TTF_Init() < 0) {
+    fprintf(stderr, "ERROR: TTF_Init");
+    return 1;
+  }
+
+  font = TTF_OpenFont(FONT, FONT_SIZE);
+  if (!font) {
+    fprintf(stderr, "ERROR: Failed to load font");
+    return 1;
+  }
+
+  window = SDL_CreateWindow("Snake", WINDOW_X, WINDOW_Y, WINDOW_WIDTH,
+                            WINDOW_HEIGHT, SDL_WINDOW_BORDERLESS);
+
+  snake.head = snake.body;
+  snake_reset(&snake);
+  apple_spawn(&apple, snake);
+
+  if (!window) {
+    fprintf(stderr, "ERROR: SDL_CreateWindow");
+    return 1;
+  }
+
+  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+  if (!renderer) {
+    fprintf(stderr, "ERROR: SDL_CreateRenderer");
+    return 1;
+  }
+
+  /*************
+   * Game Loop *
+   *************/
+
+#ifdef __EMSCRIPTEN__
+  emscripten_set_main_loop(mainloop, 0, 1);
+#else
+  while (1) {
+    mainloop();
+  }
+#endif
 
   return 0;
 }
