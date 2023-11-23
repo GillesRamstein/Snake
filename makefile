@@ -1,7 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O0 -g
-INCLUDES = -I/usr/include/SDL2/
-LIBS = -lSDL2 -lSDL2_ttf -lm
+CFLAGS = -Wall -Wextra -Og -g `sdl2-config --cflags`
+LIBS = `sdl2-config --libs` -lSDL2_ttf -lm
 SRCS = snake_ai.c
 # SRCS = snake.c
 OBJS = $(SRCS:.c=.o)
